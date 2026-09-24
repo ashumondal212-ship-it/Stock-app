@@ -50,6 +50,30 @@ h2{font-size:14px;color:var(--mute);margin:16px 2px 8px;font-weight:600}
 nav{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
 nav button{background:none;border:0;padding:14px 4px;font-size:16px;font-weight:600;color:var(--mute)}
 nav button.on{color:var(--brand);box-shadow:inset 0 3px 0 var(--brand)}
+.chips{display:flex;gap:8px;overflow-x:auto;margin:0 -12px 10px;padding:2px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:9px 16px;font-size:15px;font-weight:600}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+select#pr{grid-column:1/-1}
+.ap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:12px}
+.ap .who{font-size:13px;color:var(--mute)}
+.ap .hero{display:flex;align-items:baseline;gap:8px;margin-top:2px}
+.ap .pct{font-size:40px;font-weight:800;line-height:1.05}
+.ap .lbl{font-size:14px;color:var(--mute)}
+.ap .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.ap .nums div{background:var(--bg);border-radius:8px;padding:8px;text-align:center}
+.ap .nums b{display:block;font-size:17px}
+.ap .nums span{font-size:12px;color:var(--mute)}
+.ap .note{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.4}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:6px}
+.bar i{display:block;height:100%;border-radius:99px}
+.bar i.g{background:var(--ok)}.bar i.a{background:#d9961b}.bar i.r{background:var(--bad)}
+.tg{color:var(--ok)}.ta{color:var(--warn)}.tr{color:var(--bad)}
+.ach{margin-top:9px;font-size:13px;color:var(--mute)}
+.ach .l{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ach .l b{font-size:16px}
+.why{font-size:13px;color:var(--bad);margin-top:5px;font-weight:600}
+.ex{font-size:12.5px;color:var(--ok);margin-top:3px;font-weight:600}
 @media(prefers-reduced-motion:reduce){.up,.down{animation:none}}
 </style>
 </head>
@@ -61,11 +85,14 @@ nav button.on{color:var(--brand);box-shadow:inset 0 3px 0 var(--brand)}
 </header>
 <main>
   <div id="err"></div>
+  <div class="chips" id="cats"></div>
   <div class="kpis" id="kpis"></div>
+  <div id="ap"></div>
   <div class="ctl">
     <input type="search" id="q" placeholder="Search product or SKU code">
     <select id="pl"></select>
-    <select id="sort"><option value="n">Sort: Name</option><option value="v">Sort: Lowest first</option></select>
+    <select id="sort"><option value="n">Sort: Name</option><option value="v">Sort: Lowest first</option><option value="a">Sort: Lowest achievement</option></select>
+    <select id="pr"></select>
   </div>
   <label class="chk"><input type="checkbox" id="sh"> Show shortages only</label>
   <div id="view"></div>
@@ -87,7 +114,7 @@ const fmt = (n, d = 0) => n.toLocaleString("en-IN", { minimumFractionDigits: d, 
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const keyOf = (a, b) => [String(a).trim(), String(b).trim()].sort().join("|");
 
-let tab = "box", plant = "All", data = null, prev = {};
+let tab = "box", plant = "All", cat = "All", prod = "All", data = null, prev = {};
 
 function parseCSV(t) {
   const rows = []; let r = [], f = "", q = false;
@@ -126,28 +153,63 @@ const lamShort = s => /^shortage/i.test(s.ls);
 const cls = t => /shortage|deficit|low|critical|no stock/i.test(t) ? "r" : /attention/i.test(t) ? "a" : "g";
 const V = (k, v, d = 0, u = "") => `<b data-k="${esc(k)}" data-v="${v}">${fmt(v, d)}${u}</b>`;
 
-function fgKpi() {
+// ---- category / achievement helpers (added) ----
+const TYPE_ORDER = ["Rusk", "Cookies", "Cream Biscuit", "Biscuit"];
+const typeOf = n => /rusk/i.test(n) ? "Rusk" : /cookie|cashew|kalonji/i.test(n) ? "Cookies" : /cream/i.test(n) ? "Cream Biscuit" : "Biscuit";
+const prodName = n => String(n).replace(/^samuh\s+/i, "").replace(/!/g, "").replace(/\s+/g, " ").trim();
+const catOk = s => (cat === "All" || typeOf(s.name) === cat) && (prod === "All" || s.code === prod);
+const tone = p => p >= 100 ? "g" : p >= 50 ? "a" : "r";
+const tx = t => ({ g: "tg", a: "ta", r: "tr" })[t];
+const fmtT = t => fmt(t, t >= 100 ? 0 : 1);
+const unitOf = () => ({ box: "boxes left", lam: "laminate left", fg: "cs possible" })[tab];
+const used = x => planOf(x) || (tab === "box" ? (x.a || x.c || x.r || boxShort(x)) : tab === "lam" ? (x.la || x.lc || x.lr || lamShort(x)) : (x.cap || x.c || boxShort(x) || lamShort(x)));
+const achHTML = (label, pct, extra) => { const t = tone(pct); return `<div class="ach"><div class="l"><span>${label}</span><b class="${tx(t)}">${Math.round(pct)}%</b></div><div class="bar"><i class="${t}" style="width:${Math.min(pct, 100)}%"></i></div>${extra || ""}</div>`; };
+function agg(list) {
+  let pt = 0, mt = 0, lt = 0, n = 0, short = 0;
+  list.forEach(s => { const p = planOf(s); if (!p) return; const per = p.cs ? p.t / p.cs : 0; n++; pt += p.t; mt += s.c * per; lt += p.left * per; if (planShort(s)) short++; });
+  return { n, pt, mt, lt, short, pct: pt > 0 ? mt / pt * 100 : 0 };
+}
+
+function fgKpi(L) {
   let pc = 0, made = 0, left = 0;
-  data.skus.forEach(s => { const p = planOf(s); if (p) { pc += p.cs; made += s.c; left += p.left; } });
+  (L || data.skus).forEach(s => { const p = planOf(s); if (p) { pc += p.cs; made += s.c; left += p.left; } });
   return [["Plan (cases)", pc, "pc"], ["Made so far", made, "pm"], ["Still to make", left, "pl"]];
 }
 
 function kpis() {
-  const t = data.t;
+  const filt = cat !== "All" || prod !== "All" || plant !== "All";
+  const L = data.skus.filter(s => catOk(s) && (plant === "All" || s.key === plant));
+  const sum = f => L.reduce((a, x) => a + x[f], 0);
+  const t = filt ? { a: sum("a"), c: sum("c"), r: sum("r"), la: sum("la"), lc: sum("lc"), lr: sum("lr") } : data.t;
   const set = tab === "box" ? [["Total boxes", t.a, "a"], ["Used", t.c, "c"], ["Remaining", t.r, "r"]]
     : tab === "lam" ? [["Total kg", t.la, "la", 0], ["Used kg", t.lc, "lc", 0], ["Remaining kg", t.lr, "lr", 0]]
-    : fgKpi();
-  $("#kpis").innerHTML = set.map(x => `<div class="kpi"><span>${x[0]}</span>${V(tab + "|K|" + x[2], x[1], x[3] || 0)}</div>`).join("");
+    : fgKpi(filt ? L : null);
+  const sig = filt ? cat + "|" + prod + "|" + plant : "";
+  $("#kpis").innerHTML = set.map(x => `<div class="kpi"><span>${x[0]}</span>${V(tab + "|K|" + x[2] + "|" + sig, x[1], x[3] || 0)}</div>`).join("");
 }
 
 function plantRow(p) {
-  let main, sub, badge = "";
-  if (tab === "box") { main = V("box|P|" + p.key + "|r", p.r, 0); sub = `Total ${fmt(p.a)} · Used ${fmt(p.c)}`; badge = p.cs; }
-  else if (tab === "lam") { main = V("lam|P|" + p.key + "|r", p.lr, 1, " kg"); sub = `Total ${fmt(p.la, 1)} · Used ${fmt(p.lc, 1)}`; badge = p.ls; }
-  else { main = V("fg|P|" + p.key + "|cap", p.cap, 0); let pc = 0, made = 0, left = 0;
-    data.skus.filter(s => s.key === p.key).forEach(s => { const q = planOf(s); if (q) { pc += q.cs; made += s.c; left += q.left; } });
-    sub = pc ? `Plan ${fmt(pc)} cs · Made ${fmt(made)} · Left ${fmt(left)}` : `Produced ${fmt(p.c)} · no plan`; }
-  return `<div class="row tap ${plant === p.key ? "sel" : ""}" data-p="${esc(p.key)}"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.loc)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}</div><div class="val">${main}<small>${sub}</small></div></div>`;
+  const catOn = cat !== "All" || prod !== "All";
+  const all = data.skus.filter(s => s.key === p.key);
+  const L = catOn ? all.filter(s => catOk(s) && used(s)) : all;
+  const sum = f => L.reduce((a, x) => a + x[f], 0);
+  const P = catOn ? {
+    a: sum("a"), c: sum("c"), r: sum("r"), la: sum("la"), lc: sum("lc"), lr: sum("lr"), cap: sum("cap"),
+    cs: L.some(boxShort) ? "Shortage: " + L.filter(boxShort).length + " item(s)" : "Healthy Stock",
+    ls: L.some(lamShort) ? "Shortage: " + L.filter(lamShort).length + " item(s)" : "Healthy Stock"
+  } : p;
+  const sig = catOn ? "|" + cat + "|" + prod : "";
+  let main, sub, badge = "", ach = "";
+  if (tab === "box") { main = V("box|P|" + p.key + "|r" + sig, P.r, 0); sub = `Total ${fmt(P.a)} · Used ${fmt(P.c)}`; badge = P.cs; }
+  else if (tab === "lam") { main = V("lam|P|" + p.key + "|r" + sig, P.lr, 1, " kg"); sub = `Total ${fmt(P.la, 1)} · Used ${fmt(P.lc, 1)}`; badge = P.ls; }
+  else {
+    main = V("fg|P|" + p.key + "|cap" + sig, P.cap, 0);
+    let pc = 0, made = 0, left = 0;
+    L.forEach(s => { const q = planOf(s); if (q) { pc += q.cs; made += s.c; left += q.left; } });
+    sub = pc ? `Plan ${fmt(pc)} cs · Made ${fmt(made)} · Left ${fmt(left)}` : `Produced ${fmt(P.c)} · no plan`;
+    const g = agg(L); if (g.n) ach = achHTML("Achieved (Made ÷ Plan)", g.pct);
+  }
+  return `<div class="row tap ${plant === p.key ? "sel" : ""}" data-p="${esc(p.key)}"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.loc)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}${ach}</div><div class="val">${main}<small>${unitOf()}</small><small>${sub}</small></div></div>`;
 }
 
 function skuRow(s) {
@@ -156,18 +218,52 @@ function skuRow(s) {
   if (tab === "box") { main = V("box|S|" + id + "|r", s.r, 0); sub = `Total ${fmt(s.a)} · Used ${fmt(s.c)}`; badge = s.cs; short = boxShort(s); }
   else if (tab === "lam") { main = V("lam|S|" + id + "|r", s.lr, 1, " kg"); sub = `Total ${fmt(s.la, 1)} · Used ${fmt(s.lc, 1)}`; badge = s.ls; short = lamShort(s); }
   else { main = V("fg|S|" + id + "|cap", s.cap, 0); sub = `Produced ${fmt(s.c)} · ${fmt(s.tons, 1)} tons possible`; short = boxShort(s) || lamShort(s); }
-  const pi = planOf(s); let plan = "";
+  const pi = planOf(s); let plan = "", ach = "";
   if (pi) {
     const ps = planShort(s); short = short || ps;
     const cover = tab === "box" ? `Boxes in stock ${fmt(s.r)}` : tab === "lam" ? `Laminate covers ${fmt(s.cap)} cs` : `Boxes ${fmt(s.r)} · Laminate covers ${fmt(s.cap)} cs`;
     const tag = !pi.left ? ["g", "Plan done"] : ps ? ["r", "Short for plan"] : ["g", "Plan covered"];
-    plan = `<div class="plan">${PLAN_LABEL}: ${fmt(pi.cs)} cs (${fmt(pi.t, 1)} t) · Made ${fmt(s.c)} · Left ${fmt(pi.left)} cs${pi.left ? `<br>${cover}` : ""}<br><span class="badge ${tag[0]}">${tag[1]}</span></div>`;
+    const gB = pi.left - s.r, gL = pi.left - s.cap;
+    const gap = tab === "box" ? gB : tab === "lam" ? gL : Math.max(gB, gL);
+    const lim = tab === "box" ? "boxes" : tab === "lam" ? "laminate" : (gB >= gL ? "boxes" : "laminate");
+    const why = pi.left && ps && gap > 0 ? `<div class="why">Short by ${fmt(gap)} cs (${lim})</div>` : "";
+    plan = `<div class="plan">${PLAN_LABEL}: ${fmt(pi.cs)} cs (${fmt(pi.t, 1)} t) · Made ${fmt(s.c)} · Left ${fmt(pi.left)} cs${pi.left ? `<br>${cover}` : ""}<br><span class="badge ${tag[0]}">${tag[1]}</span>${why}</div>`;
+    const ex = s.c > pi.cs ? `<div class="ex">+${fmt(s.c - pi.cs)} cs made above plan</div>` : "";
+    ach = achHTML("Achieved (Made ÷ Plan)", pi.cs ? s.c / pi.cs * 100 : 0, ex);
   }
-  return `<div class="row ${short ? "short" : ""}"><div><div class="nm">${esc(s.name)}</div><div class="sub">${esc(s.code)} · ${esc(s.pl)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}${plan}</div><div class="val">${main}<small>${sub}</small></div></div>`;
+  return `<div class="row ${short ? "short" : ""}"><div><div class="nm">${esc(s.name)}</div><div class="sub">${esc(s.code)} · ${esc(s.pl)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}${plan}${ach}</div><div class="val">${main}<small>${unitOf()}</small><small>${sub}</small></div></div>`;
+}
+
+function panel(items) {
+  const a = agg(items);
+  if (!a.n) { $("#ap").innerHTML = ""; return; }
+  const t = tone(a.pct);
+  const pn = plant === "All" ? "all plants" : ((data.plants.find(p => p.key === plant) || {}).name || "selected plant");
+  const who = (cat === "All" ? "All products" : cat) + (prod !== "All" ? " · " + prodName((data.skus.find(s => s.code === prod) || {}).name || prod) : "") + " · " + pn + " · " + a.n + " planned item" + (a.n > 1 ? "s" : "");
+  const mat = tab === "box" ? "boxes" : tab === "lam" ? "laminate" : "boxes or laminate";
+  $("#ap").innerHTML = `<div class="ap"><div class="who">${esc(who)}</div>
+    <div class="hero"><span class="pct ${tx(t)}">${Math.round(a.pct)}%</span><span class="lbl">of ${esc(PLAN_LABEL)} achieved</span></div>
+    <div class="bar"><i class="${t}" style="width:${Math.min(a.pct, 100)}%"></i></div>
+    <div class="nums"><div><b>${fmtT(a.pt)} t</b><span>Plan</span></div><div><b>${fmtT(a.mt)} t</b><span>Made</span></div><div><b>${fmtT(a.lt)} t</b><span>Left to make</span></div></div>
+    <div class="note">Achievement = Made ÷ Plan, counted by weight. ${a.short ? a.short + " of " + a.n + " short of " + mat + " for the plan that is left." : "Enough " + mat + " for the plan that is left."}</div></div>`;
 }
 
 function render() {
   if (!data) return;
+  // category chips + product list
+  const types = TYPE_ORDER.filter(t => data.skus.some(s => typeOf(s.name) === t));
+  if (cat !== "All" && !types.includes(cat)) cat = "All";
+  $("#cats").innerHTML = ["All"].concat(types).map(t => `<button type="button" class="chip ${cat === t ? "on" : ""}" data-c="${esc(t)}">${esc(t)}</button>`).join("");
+  const fm = new Map();
+  data.skus.filter(s => cat === "All" || typeOf(s.name) === cat).forEach(s => { if (s.code && !fm.has(s.code)) fm.set(s.code, prodName(s.name)); });
+  const fams = [...fm.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  if (prod !== "All" && !fm.has(prod)) prod = "All";
+  const pr = $("#pr"), psig = cat + "|" + fams.length;
+  if (pr.dataset.sig !== psig) {
+    pr.innerHTML = `<option value="All">All ${cat === "All" ? "products" : esc(cat)} (every pack size)</option>` + fams.map(f => `<option value="${esc(f[0])}">${esc(f[1])}</option>`).join("");
+    pr.dataset.sig = psig;
+  }
+  pr.value = prod;
   kpis();
   const q = $("#q").value.trim().toLowerCase(), sh = $("#sh").checked, sort = $("#sort").value;
   const pl = $("#pl");
@@ -175,13 +271,23 @@ function render() {
     pl.innerHTML = `<option value="All">All plants</option>` + data.plants.map(p => `<option value="${esc(p.key)}">${esc(p.name)} – ${esc(p.loc)}</option>`).join("");
   }
   pl.value = plant;
-  const used = x => planOf(x) || (tab === "box" ? (x.a || x.c || x.r || boxShort(x)) : tab === "lam" ? (x.la || x.lc || x.lr || lamShort(x)) : (x.cap || x.c || boxShort(x) || lamShort(x)));
-  let items = data.skus.filter(s => used(s) && (plant === "All" || s.key === plant));
+  let items = data.skus.filter(s => used(s) && catOk(s) && (plant === "All" || s.key === plant));
   if (q) items = items.filter(s => (s.name + " " + s.code).toLowerCase().includes(q));
   if (sh) items = items.filter(s => (tab === "lam" ? lamShort(s) : tab === "box" ? boxShort(s) : (boxShort(s) || lamShort(s))) || planShort(s));
   const sv = s => tab === "box" ? s.r : tab === "lam" ? s.lr : s.cap;
-  items.sort(sort === "v" ? (a, b) => sv(a) - sv(b) : (a, b) => a.name.localeCompare(b.name));
-  $("#view").innerHTML = `<h2>Plants (tap to filter)</h2>` + data.plants.map(plantRow).join("") +
+  const ap = s => { const p = planOf(s); return p && p.cs ? s.c / p.cs : Infinity; };
+  items.sort(sort === "v" ? (a, b) => sv(a) - sv(b)
+    : sort === "a" ? (a, b) => { const x = ap(a), y = ap(b); return x === y ? 0 : x - y; }
+    : (a, b) => a.name.localeCompare(b.name));
+  panel(items);
+  const catOn = cat !== "All" || prod !== "All";
+  const seen = new Set();
+  const shown = data.plants.filter(p => {
+    if (!catOn) return true;
+    if (seen.has(p.key) || !data.skus.some(s => s.key === p.key && catOk(s) && used(s))) return false;
+    seen.add(p.key); return true;
+  });
+  $("#view").innerHTML = `<h2>Plants (tap to filter)</h2>` + shown.map(plantRow).join("") +
     `<h2>Products (${items.length})</h2>` + (items.length ? items.map(skuRow).join("") : `<div class="msg">No products match. Clear the search or filters.</div>`);
   flash();
 }
@@ -336,6 +442,8 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 $("#q").oninput = render; $("#sh").onchange = render; $("#sort").onchange = render;
 $("#pl").onchange = e => { plant = e.target.value; render(); };
 $("#view").onclick = e => { const r = e.target.closest("[data-p]"); if (r) { plant = plant === r.dataset.p ? "All" : r.dataset.p; render(); } };
+$("#cats").onclick = e => { const b = e.target.closest("[data-c]"); if (b) { cat = b.dataset.c; prod = "All"; render(); } };
+$("#pr").onchange = e => { prod = e.target.value; render(); };
 $("#ref").onclick = load;
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
 load(); setInterval(() => { if (!document.hidden) load(); }, REFRESH_SECONDS * 1000);
