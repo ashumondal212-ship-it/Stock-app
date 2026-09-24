@@ -40,6 +40,7 @@ h2{font-size:14px;color:var(--mute);margin:16px 2px 8px;font-weight:600}
 .val small{display:block;font-size:12px;color:var(--mute)}
 .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;margin-top:5px;font-weight:600}
 .g{background:var(--okbg);color:var(--ok)}.a{background:var(--warnbg);color:var(--warn)}.r{background:var(--badbg);color:var(--bad)}
+.plan{font-size:13px;margin-top:7px;line-height:1.45}
 .row.short{border-left:4px solid var(--bad)}
 .up{animation:fu 2.5s ease-out}.down{animation:fd 2.5s ease-out}
 @keyframes fu{0%,30%{background:var(--up)}100%{background:transparent}}
@@ -125,11 +126,17 @@ const lamShort = s => /^shortage/i.test(s.ls);
 const cls = t => /shortage|deficit|low|critical|no stock/i.test(t) ? "r" : /attention/i.test(t) ? "a" : "g";
 const V = (k, v, d = 0, u = "") => `<b data-k="${esc(k)}" data-v="${v}">${fmt(v, d)}${u}</b>`;
 
+function fgKpi() {
+  let pc = 0, made = 0, left = 0;
+  data.skus.forEach(s => { const p = planOf(s); if (p) { pc += p.cs; made += s.c; left += p.left; } });
+  return [["Plan (cases)", pc, "pc"], ["Made so far", made, "pm"], ["Still to make", left, "pl"]];
+}
+
 function kpis() {
   const t = data.t;
   const set = tab === "box" ? [["Total boxes", t.a, "a"], ["Used", t.c, "c"], ["Remaining", t.r, "r"]]
     : tab === "lam" ? [["Total kg", t.la, "la", 0], ["Used kg", t.lc, "lc", 0], ["Remaining kg", t.lr, "lr", 0]]
-    : [["Produced (cases)", t.c, "c"], ["Can still make (cases)", t.cap, "cap"], ["Tons possible", t.tons, "tons", 1]];
+    : fgKpi();
   $("#kpis").innerHTML = set.map(x => `<div class="kpi"><span>${x[0]}</span>${V(tab + "|K|" + x[2], x[1], x[3] || 0)}</div>`).join("");
 }
 
@@ -137,7 +144,9 @@ function plantRow(p) {
   let main, sub, badge = "";
   if (tab === "box") { main = V("box|P|" + p.key + "|r", p.r, 0); sub = `Total ${fmt(p.a)} · Used ${fmt(p.c)}`; badge = p.cs; }
   else if (tab === "lam") { main = V("lam|P|" + p.key + "|r", p.lr, 1, " kg"); sub = `Total ${fmt(p.la, 1)} · Used ${fmt(p.lc, 1)}`; badge = p.ls; }
-  else { main = V("fg|P|" + p.key + "|cap", p.cap, 0); sub = `Produced ${fmt(p.c)} · ${fmt(p.tons, 1)} tons possible`; }
+  else { main = V("fg|P|" + p.key + "|cap", p.cap, 0); let pc = 0, made = 0, left = 0;
+    data.skus.filter(s => s.key === p.key).forEach(s => { const q = planOf(s); if (q) { pc += q.cs; made += s.c; left += q.left; } });
+    sub = pc ? `Plan ${fmt(pc)} cs · Made ${fmt(made)} · Left ${fmt(left)}` : `Produced ${fmt(p.c)} · no plan`; }
   return `<div class="row tap ${plant === p.key ? "sel" : ""}" data-p="${esc(p.key)}"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.loc)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}</div><div class="val">${main}<small>${sub}</small></div></div>`;
 }
 
@@ -147,7 +156,14 @@ function skuRow(s) {
   if (tab === "box") { main = V("box|S|" + id + "|r", s.r, 0); sub = `Total ${fmt(s.a)} · Used ${fmt(s.c)}`; badge = s.cs; short = boxShort(s); }
   else if (tab === "lam") { main = V("lam|S|" + id + "|r", s.lr, 1, " kg"); sub = `Total ${fmt(s.la, 1)} · Used ${fmt(s.lc, 1)}`; badge = s.ls; short = lamShort(s); }
   else { main = V("fg|S|" + id + "|cap", s.cap, 0); sub = `Produced ${fmt(s.c)} · ${fmt(s.tons, 1)} tons possible`; short = boxShort(s) || lamShort(s); }
-  return `<div class="row ${short ? "short" : ""}"><div><div class="nm">${esc(s.name)}</div><div class="sub">${esc(s.code)} · ${esc(s.pl)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}</div><div class="val">${main}<small>${sub}</small></div></div>`;
+  const pi = planOf(s); let plan = "";
+  if (pi) {
+    const ps = planShort(s); short = short || ps;
+    const cover = tab === "box" ? `Boxes in stock ${fmt(s.r)}` : tab === "lam" ? `Laminate covers ${fmt(s.cap)} cs` : `Boxes ${fmt(s.r)} · Laminate covers ${fmt(s.cap)} cs`;
+    const tag = !pi.left ? ["g", "Plan done"] : ps ? ["r", "Short for plan"] : ["g", "Plan covered"];
+    plan = `<div class="plan">${PLAN_LABEL}: ${fmt(pi.cs)} cs (${fmt(pi.t, 1)} t) · Made ${fmt(s.c)} · Left ${fmt(pi.left)} cs${pi.left ? `<br>${cover}` : ""}<br><span class="badge ${tag[0]}">${tag[1]}</span></div>`;
+  }
+  return `<div class="row ${short ? "short" : ""}"><div><div class="nm">${esc(s.name)}</div><div class="sub">${esc(s.code)} · ${esc(s.pl)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}${plan}</div><div class="val">${main}<small>${sub}</small></div></div>`;
 }
 
 function render() {
@@ -159,10 +175,10 @@ function render() {
     pl.innerHTML = `<option value="All">All plants</option>` + data.plants.map(p => `<option value="${esc(p.key)}">${esc(p.name)} – ${esc(p.loc)}</option>`).join("");
   }
   pl.value = plant;
-  const used = x => tab === "box" ? (x.a || x.c || x.r || boxShort(x)) : tab === "lam" ? (x.la || x.lc || x.lr || lamShort(x)) : (x.cap || x.c || boxShort(x) || lamShort(x));
+  const used = x => planOf(x) || (tab === "box" ? (x.a || x.c || x.r || boxShort(x)) : tab === "lam" ? (x.la || x.lc || x.lr || lamShort(x)) : (x.cap || x.c || boxShort(x) || lamShort(x)));
   let items = data.skus.filter(s => used(s) && (plant === "All" || s.key === plant));
   if (q) items = items.filter(s => (s.name + " " + s.code).toLowerCase().includes(q));
-  if (sh) items = items.filter(s => tab === "lam" ? lamShort(s) : tab === "box" ? boxShort(s) : (boxShort(s) || lamShort(s)));
+  if (sh) items = items.filter(s => (tab === "lam" ? lamShort(s) : tab === "box" ? boxShort(s) : (boxShort(s) || lamShort(s))) || planShort(s));
   const sv = s => tab === "box" ? s.r : tab === "lam" ? s.lr : s.cap;
   items.sort(sort === "v" ? (a, b) => sv(a) - sv(b) : (a, b) => a.name.localeCompare(b.name));
   $("#view").innerHTML = `<h2>Plants (tap to filter)</h2>` + data.plants.map(plantRow).join("") +
@@ -270,6 +286,14 @@ S: {
 ["ROZ23760","Samuh Elaichi Rusk 130 g",1000,0,1000,"Shortage: 9,577 Bx (Buy)",1000,0,1000,"Sufficient (Surplus 105.8 Kg)",12183,38.01],
 ["ROZ23759","Samuh Elaichi Rusk 65 g",5000,0,5000,"Shortage: 37,949 Bx (Buy)",1500,0,1500,"Shortage: 995.0 Kg (PO Req)",26596,41.49]]
 }};
+// Monthly plan from SAMUH Production Tracker (Master Data tab): plant key -> SKU code -> [plan tons, plan cases]
+// Kashipur (Devarpan) plan set to 12 t total: the 6 t + 9 t SKU plans were scaled by 0.8 (assumed split).
+// Plan cases = plan tons / (pack grams x packs per case). Update this block when the plan changes.
+const PLAN_LABEL = "Sep 2026 plan";
+const PLAN = {"Lucknow|VEETADAY INDUSTRIES PRIVATE LIMITED":{"ROZ39494":[20.47,4062],"ROZ23739":[8,1587],"ROZ23738":[6,1190],"ROZ23743":[10.5,2279],"ROZ23741":[34.61,6867],"ROZ23742":[5,1085],"ROZ36954":[17.34,4014],"ROZ36955":[2,476],"ROZ36956":[2,476],"ROZ36957":[4,952],"ROZ39495":[7.64,1516],"ROZ36959":[2,513],"ROZ36958":[1.76,451],"ROZ36961":[22,4701],"ROZ36960":[2.76,767],"ROZ23760":[4,1282],"ROZ23759":[8,5128]},"Rudrapur|SWG":{"ROZ23739":[8,1587],"ROZ23738":[15,2976],"ROZ23743":[14,3038],"ROZ23742":[14,3038],"ROZ36955":[4,952],"ROZ36956":[2,476],"ROZ36959":[6,1538],"ROZ36958":[11.7,3000],"ROZ50020":[29,5754]},"Asansol, West Bengal|STRAIGHT LINE FOOD PRODUCTS PRIVATE LIMITED":{"ROZ23739":[9.07,1800],"ROZ36962":[20.82,3856],"ROZ36955":[3.88,924],"ROZ36959":[27.69,7100],"ROZ23742":[54.12,11745],"ROZ36958":[0.66,169],"ROZ36956":[3,714]},"Kathua, Jammu|RATTAN OIL MILLS":{"ROZ23741":[54.75,11521],"ROZ36957":[22.46,5672],"ROZ23739":[30,6313],"ROZ36956":[13,3283],"ROZ23738":[52.99,11151],"ROZ36955":[17.85,4508],"ROZ23743":[55.47,12840],"ROZ36958":[23.01,6392],"ROZ36954":[34.74,8319],"ROZ36960":[17.58,5052],"ROZ39494":[70,13889],"ROZ39495":[17,3373],"ROZ23740":[14,2778],"ROZ46762":[23,5324],"ROZ50019":[25,5787]},"Kanpur|Meera Baker":{"ROZ23760":[10,3205],"ROZ23759":[20,12821]},"DEVARPAN FOODS PRIVATE LIMITED|Kashipur":{"ROZ23760":[4.8,1538],"ROZ23759":[7.2,4615]},"Saharnpur|Shubham Enterprises":{"ROZ23760":[17,3632],"ROZ23759":[35,14957]},"Punjab|Shri Shyam":{"ROZ23760":[33,10577],"ROZ23759":[67,42949]}};
+const planOf = s => { const p = (PLAN[s.key] || {})[s.code]; return p ? { t: p[0], cs: p[1], left: Math.max(p[1] - s.c, 0) } : null; };
+const planShort = s => { const p = planOf(s); if (!p || !p.left) return false; return tab === "box" ? p.left > s.r : tab === "lam" ? p.left > s.cap : (p.left > s.r || p.left > s.cap); };
+
 function fromSnap() {
   const plants = SNAP.P.map(x => ({ loc: x[0], name: x[1], key: keyOf(x[0], x[1]), a: x[2], c: x[3], r: x[4], cs: x[5], la: x[6], lc: x[7], lr: x[8], ls: x[9] }));
   const skus = [];
