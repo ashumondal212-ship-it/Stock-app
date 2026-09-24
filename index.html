@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Stock Live</title>
+<style>
+:root{--bg:#f4f6f5;--card:#fff;--ink:#16211d;--mute:#66736e;--line:#e2e8e5;--brand:#1f6f5c;--ok:#1b7a43;--okbg:#e2f4e8;--warn:#9a6200;--warnbg:#fff1d6;--bad:#b3261e;--badbg:#fde6e4;--up:#b7ecc6;--down:#f8c4bf}
+@media(prefers-color-scheme:dark){:root{--bg:#101615;--card:#18201e;--ink:#eaf1ee;--mute:#93a29c;--line:#28332f;--brand:#3fb28f;--ok:#6fd39a;--okbg:#173a27;--warn:#f0b955;--warnbg:#3d2f10;--bad:#ff8f86;--badbg:#421b18;--up:#245b3a;--down:#6b2a25}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px}
+body{padding:env(safe-area-inset-top,0) 0 calc(64px + env(safe-area-inset-bottom,0))}
+header{position:sticky;top:0;z-index:5;background:var(--brand);color:#fff;padding:calc(10px + env(safe-area-inset-top,0)) 14px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+header h1{font-size:18px;margin:0}
+.st{font-size:12px;opacity:.9;display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:#7CFFB0}
+.dot.off{background:#ff8f86}
+header button{background:rgba(255,255,255,.18);border:0;color:#fff;border-radius:8px;padding:8px 10px;font-size:14px}
+main{padding:12px;max-width:640px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 8px;text-align:center}
+.kpi b{display:block;font-size:19px;margin-top:2px}
+.kpi span{font-size:12px;color:var(--mute)}
+.ctl{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+input[type=search],select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:16px}
+input[type=search]{grid-column:1/-1}
+label.chk{display:flex;align-items:center;gap:8px;font-size:15px;margin:4px 2px 12px}
+label.chk input{width:20px;height:20px}
+h2{font-size:14px;color:var(--mute);margin:16px 2px 8px;font-weight:600}
+.row{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.row.tap{cursor:pointer}
+.row.sel{outline:2px solid var(--brand)}
+.nm{font-weight:600;font-size:15px;line-height:1.25}
+.sub{font-size:13px;color:var(--mute);margin-top:3px}
+.val{text-align:right;white-space:nowrap}
+.val b{font-size:18px;display:inline-block;padding:0 4px;border-radius:5px}
+.val small{display:block;font-size:12px;color:var(--mute)}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;margin-top:5px;font-weight:600}
+.g{background:var(--okbg);color:var(--ok)}.a{background:var(--warnbg);color:var(--warn)}.r{background:var(--badbg);color:var(--bad)}
+.row.short{border-left:4px solid var(--bad)}
+.up{animation:fu 2.5s ease-out}.down{animation:fd 2.5s ease-out}
+@keyframes fu{0%,30%{background:var(--up)}100%{background:transparent}}
+@keyframes fd{0%,30%{background:var(--down)}100%{background:transparent}}
+.msg{text-align:center;color:var(--mute);padding:24px 8px}
+.err{background:var(--badbg);color:var(--bad);padding:10px;border-radius:10px;margin-bottom:10px;font-size:14px}
+nav{position:fixed;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{background:none;border:0;padding:14px 4px;font-size:16px;font-weight:600;color:var(--mute)}
+nav button.on{color:var(--brand);box-shadow:inset 0 3px 0 var(--brand)}
+@media(prefers-reduced-motion:reduce){.up,.down{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Stock Live</h1>
+  <div class="st"><span class="dot" id="dot"></span><span id="upd">Loading…</span></div>
+  <button id="ref" type="button">Refresh</button>
+</header>
+<main>
+  <div id="err"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="ctl">
+    <input type="search" id="q" placeholder="Search product or SKU code">
+    <select id="pl"></select>
+    <select id="sort"><option value="n">Sort: Name</option><option value="v">Sort: Lowest first</option></select>
+  </div>
+  <label class="chk"><input type="checkbox" id="sh"> Show shortages only</label>
+  <div id="view"></div>
+</main>
+<nav>
+  <button data-t="box" class="on" type="button">Box</button>
+  <button data-t="lam" type="button">Laminate</button>
+  <button data-t="fg" type="button">FG</button>
+</nav>
+<script>
+// ====== SETTINGS ======
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vScQPrL8JKY7fKJzt-8h9eC7GwaSvfp_O2EKlC0DEv4FwBJj7gaEjYd0aMPye9fgb8hFMM44SRGD_kn/pub?output=csv";
+const REFRESH_SECONDS = 15;
+// =======================
+
+const $ = s => document.querySelector(s);
+const num = v => { const n = parseFloat(String(v == null ? "" : v).replace(/,/g, "")); return isNaN(n) ? 0 : n; };
+const fmt = (n, d = 0) => n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const keyOf = (a, b) => [String(a).trim(), String(b).trim()].sort().join("|");
+
+let tab = "box", plant = "All", data = null, prev = {};
+
+function parseCSV(t) {
+  const rows = []; let r = [], f = "", q = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === ",") { r.push(f); f = ""; }
+    else if (c === "\n") { r.push(f); rows.push(r); r = []; f = ""; }
+    else if (c !== "\r") f += c;
+  }
+  if (f !== "" || r.length) { r.push(f); rows.push(r); }
+  return rows.map(x => x.map(v => v.trim()));
+}
+
+function build(rows) {
+  const plants = [], skus = []; let tot = null, mode = "";
+  for (const r of rows) {
+    if (r[1] === "Location") { mode = "p"; continue; }
+    if (r[4] === "SKU Code") { mode = "s"; continue; }
+    if ((r[1] || "").startsWith("TOTAL / ALL")) { mode = ""; continue; }
+    if ((r[1] || "").startsWith("GRAND TOTAL")) { tot = r; mode = ""; continue; }
+    if (mode === "p" && r[2]) plants.push({ loc: r[1], name: r[2], key: keyOf(r[1], r[2]), a: num(r[4]), c: num(r[5]), r: num(r[6]), cs: r[7], la: num(r[8]), lc: num(r[9]), lr: num(r[10]), ls: r[11] });
+    if (mode === "s" && r[5]) skus.push({ pl: r[1], loc: r[2], key: keyOf(r[1], r[2]), code: r[4], name: r[5], a: num(r[6]), c: num(r[7]), r: num(r[8]), cs: r[9], la: num(r[10]), lc: num(r[11]), lr: num(r[12]), ls: r[13], cap: num(r[14]), tons: num(r[15]) });
+  }
+  if (!tot) throw new Error("Sheet layout not recognised");
+  for (const p of plants) {
+    const s = skus.filter(x => x.key === p.key);
+    p.cap = s.reduce((a, x) => a + x.cap, 0); p.tons = s.reduce((a, x) => a + x.tons, 0);
+  }
+  return { plants, skus, t: { a: num(tot[6]), c: num(tot[7]), r: num(tot[8]), la: num(tot[10]), lc: num(tot[11]), lr: num(tot[12]), cap: num(tot[14]), tons: num(tot[15]) } };
+}
+
+const boxShort = s => /^(shortage|deficit)/i.test(s.cs) || s.r < 0;
+const lamShort = s => /^shortage/i.test(s.ls);
+const cls = t => /shortage|deficit|low|critical|no stock/i.test(t) ? "r" : /attention/i.test(t) ? "a" : "g";
+const V = (k, v, d = 0, u = "") => `<b data-k="${esc(k)}" data-v="${v}">${fmt(v, d)}${u}</b>`;
+
+function kpis() {
+  const t = data.t;
+  const set = tab === "box" ? [["Total boxes", t.a, "a"], ["Used", t.c, "c"], ["Remaining", t.r, "r"]]
+    : tab === "lam" ? [["Total kg", t.la, "la", 0], ["Used kg", t.lc, "lc", 0], ["Remaining kg", t.lr, "lr", 0]]
+    : [["Produced (cases)", t.c, "c"], ["Can still make (cases)", t.cap, "cap"], ["Tons possible", t.tons, "tons", 1]];
+  $("#kpis").innerHTML = set.map(x => `<div class="kpi"><span>${x[0]}</span>${V(tab + "|K|" + x[2], x[1], x[3] || 0)}</div>`).join("");
+}
+
+function plantRow(p) {
+  let main, sub, badge = "";
+  if (tab === "box") { main = V("box|P|" + p.key + "|r", p.r, 0); sub = `Total ${fmt(p.a)} · Used ${fmt(p.c)}`; badge = p.cs; }
+  else if (tab === "lam") { main = V("lam|P|" + p.key + "|r", p.lr, 1, " kg"); sub = `Total ${fmt(p.la, 1)} · Used ${fmt(p.lc, 1)}`; badge = p.ls; }
+  else { main = V("fg|P|" + p.key + "|cap", p.cap, 0); sub = `Produced ${fmt(p.c)} · ${fmt(p.tons, 1)} tons possible`; }
+  return `<div class="row tap ${plant === p.key ? "sel" : ""}" data-p="${esc(p.key)}"><div><div class="nm">${esc(p.name)}</div><div class="sub">${esc(p.loc)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}</div><div class="val">${main}<small>${sub}</small></div></div>`;
+}
+
+function skuRow(s) {
+  const id = s.key + "|" + s.code + "|" + s.name;
+  let main, sub, badge = "", short = false;
+  if (tab === "box") { main = V("box|S|" + id + "|r", s.r, 0); sub = `Total ${fmt(s.a)} · Used ${fmt(s.c)}`; badge = s.cs; short = boxShort(s); }
+  else if (tab === "lam") { main = V("lam|S|" + id + "|r", s.lr, 1, " kg"); sub = `Total ${fmt(s.la, 1)} · Used ${fmt(s.lc, 1)}`; badge = s.ls; short = lamShort(s); }
+  else { main = V("fg|S|" + id + "|cap", s.cap, 0); sub = `Produced ${fmt(s.c)} · ${fmt(s.tons, 1)} tons possible`; short = boxShort(s) || lamShort(s); }
+  return `<div class="row ${short ? "short" : ""}"><div><div class="nm">${esc(s.name)}</div><div class="sub">${esc(s.code)} · ${esc(s.pl)}</div>${badge ? `<span class="badge ${cls(badge)}">${esc(badge)}</span>` : ""}</div><div class="val">${main}<small>${sub}</small></div></div>`;
+}
+
+function render() {
+  if (!data) return;
+  kpis();
+  const q = $("#q").value.trim().toLowerCase(), sh = $("#sh").checked, sort = $("#sort").value;
+  const pl = $("#pl");
+  if (pl.options.length !== data.plants.length + 1) {
+    pl.innerHTML = `<option value="All">All plants</option>` + data.plants.map(p => `<option value="${esc(p.key)}">${esc(p.name)} – ${esc(p.loc)}</option>`).join("");
+  }
+  pl.value = plant;
+  const used = x => tab === "box" ? (x.a || x.c || x.r) : tab === "lam" ? (x.la || x.lc || x.lr) : (x.cap || x.c);
+  let items = data.skus.filter(s => used(s) && (plant === "All" || s.key === plant));
+  if (q) items = items.filter(s => (s.name + " " + s.code).toLowerCase().includes(q));
+  if (sh) items = items.filter(s => tab === "lam" ? lamShort(s) : tab === "box" ? boxShort(s) : (boxShort(s) || lamShort(s)));
+  const sv = s => tab === "box" ? s.r : tab === "lam" ? s.lr : s.cap;
+  items.sort(sort === "v" ? (a, b) => sv(a) - sv(b) : (a, b) => a.name.localeCompare(b.name));
+  $("#view").innerHTML = `<h2>Plants (tap to filter)</h2>` + data.plants.map(plantRow).join("") +
+    `<h2>Products (${items.length})</h2>` + (items.length ? items.map(skuRow).join("") : `<div class="msg">No products match. Clear the search or filters.</div>`);
+  flash();
+}
+
+function flash() {
+  document.querySelectorAll("[data-k]").forEach(el => {
+    const k = el.dataset.k, v = el.dataset.v;
+    if (k in prev && prev[k] !== v) el.classList.add(num(v) > num(prev[k]) ? "up" : "down");
+    prev[k] = v;
+  });
+}
+
+// Saved copy of the sheet (24 Sep 2026). Used only when live data can't load.
+const SNAP_DATE = "24 Sep 2026";
+const SNAP = {
+t: { a: 285048, c: 134010, r: 151038, la: 105492.26, lc: 14707.41, lr: 90784.85, cap: 938651, tons: 3833.56 },
+P: [
+["Lucknow","VEETADAY INDUSTRIES PRIVATE LIMITED",58605,21802,36803,"Healthy Stock",18710.32,2419.39,16290.93,"Healthy Stock"],
+["Lucknow","VEETADAY INDUSTRIES PRIVATE LIMITED",6194,0,6194,"Healthy Stock",1562,0,1562,"Healthy Stock"],
+["Rudrapur","SWG",9350,9350,0,"Low Carton Alert",6685,1010.74,5674.26,"Healthy Stock"],
+["Asansol, West Bengal","STRAIGHT LINE FOOD PRODUCTS PRIVATE LIMITED",45493,14280,31213,"Healthy Stock",31840.62,1721.45,30119.17,"Healthy Stock"],
+["Kathua, Jammu","RATTAN OIL MILLS",117954,71003,46951,"Healthy Stock",36506,7910.5,28595.5,"Healthy Stock"],
+["Kolkata","BHAGWATI",0,0,0,"No Stock Recorded",0,0,0,"No Stock"],
+["Kashipur","DEVARPAN FOODS PRIVATE LIMITED",9240,0,9240,"Healthy Stock",1790.03,0,1790.03,"Healthy Stock"],
+["Shubham Enterprises","Saharnpur",24576,14894,9682,"Healthy Stock",3534,1489.59,2044.41,"Healthy Stock"],
+["Kanpur","Meera Baker",7636,2681,4955,"Healthy Stock",2364.29,155.74,2208.55,"Healthy Stock"],
+["Punjab","Shri Shyam",6000,0,6000,"Healthy Stock",2500,0,2500,"Healthy Stock"]
+],
+S: {
+"VEETADAY INDUSTRIES PRIVATE LIMITED|Lucknow": [
+["ROZ39494","Samuh Milky Biscuit 35 g",6368,2078,4290,"Sufficient (Surplus 2,306 Bx)",337,251.36,85.64,"Shortage: 154.4 Kg (PO Req)",729,3.68],
+["ROZ23739","Samuh Beat it! Bite it! Orange Cream Biscuit 35 g",2743,200,2543,"Sufficient (Surplus 1,156 Bx)",1737,21.62,1715.38,"Sufficient (Surplus 1,565.4 Kg)",16344,82.38],
+["ROZ23738","Samuh Beat it Bite it Chocolate Cream Biscuit 35 g",2743,1145,1598,"Sufficient (Surplus 1,553 Bx)",1650,123.77,1526.23,"Sufficient (Surplus 1,521.3 Kg)",14542,73.29],
+["ROZ23743","Samuh Butter Cookies Biscuit 32 g",5710,3751,1959,"Sufficient (Surplus 3,432 Bx)",1151,422.95,728.05,"Sufficient (Surplus 894.1 Kg)",6651,30.65],
+["ROZ23740","Samuh Zeera Biscuit 35 g",0,3,-3,"Deficit: -3 Bx",1494,0.38,1493.62,"Stock Avail: 1,493.6 Kg (No Plan)",12289,61.94],
+["ROZ23741","Samuh Coconut Cookies Biscuit 35 g",9971,5215,4756,"Sufficient (Surplus 3,105 Bx)",2637.36,609.54,2027.82,"Sufficient (Surplus 1,834.8 Kg)",17870,90.06],
+["ROZ23742","Samuh Salty Sweety Biscuit 32 g",4868,1120,3748,"Sufficient (Surplus 3,783 Bx)",464,175.11,288.89,"Sufficient (Surplus 294.4 Kg)",1903,8.77],
+["ROZ36954","Samuh Butter Cashew 30 g",7740,2228,5512,"Sufficient (Surplus 3,725 Bx)",1637.96,251.22,1386.74,"Sufficient (Surplus 1,185.3 Kg)",12668,54.72],
+["ROZ36955","Samuh Beat it Bite it Chocolate Cream Biscuit 70 g",846,1,845,"Sufficient (Surplus 370 Bx)",667,0.08,666.92,"Sufficient (Surplus 627.9 Kg)",8364,35.13],
+["ROZ36956","Samuh Beat it! Bite it! Orange Cream Biscuit 70 g",1110,0,1110,"Sufficient (Surplus 634 Bx)",692,0,692,"Sufficient (Surplus 652.9 Kg)",8679,36.45],
+["ROZ36957","Samuh Coconut Cookies Biscuit 70g",2774,1054,1720,"Sufficient (Surplus 1,822 Bx)",1074,93.6,980.4,"Sufficient (Surplus 989.4 Kg)",11371,47.76],
+["ROZ39495","Samuh Milky Biscuit 70 g",4325,725,3600,"Sufficient (Surplus 2,810 Bx)",72,66.16,5.84,"Shortage: 66.3 Kg (PO Req)",66,0.33],
+["ROZ36959","Samuh Salty Sweety Biscuit 65 g",2511,312,2199,"Sufficient (Surplus 1,998 Bx)",431,34.04,396.96,"Sufficient (Surplus 375.0 Kg)",3747,14.61],
+["ROZ36958","Samuh Butter Cookies Biscuit 65g",1176,925,251,"Sufficient (Surplus 724 Bx)",960,80.91,879.09,"Sufficient (Surplus 920.5 Kg)",10352,40.37],
+["ROZ36962","Samuh Marie Biscuit 75g",0,0,0,"No Plan / No Stock",951,0,951,"Stock Avail: 951.0 Kg (No Plan)",10096,54.52],
+["ROZ36961","Samuh Butter Kalonji Bliss 65g",2460,2591,-131,"Shortage: 2,241 Bx (Buy)",1679,248.95,1430.05,"Sufficient (Surplus 1,227.3 Kg)",15330,71.75],
+["ROZ36960","Samuh Butter Cashew Biscuit 60g",3260,454,2806,"Sufficient (Surplus 2,495 Bx)",1076,39.71,1036.29,"Sufficient (Surplus 1,009.1 Kg)",12203,43.93],
+["ROZ23760","Samuh Elaichi Rusk 130 g",2310,0,2310,"Sufficient (Surplus 1,028 Bx)",818,0,818,"Sufficient (Surplus 709.6 Kg)",9966,31.09],
+["ROZ23759","Samuh Elaichi Rusk 65 g",3884,0,3884,"Shortage: 1,244 Bx (Buy)",744,0,744,"Sufficient (Surplus 446.1 Kg)",13191,20.58]],
+"SWG|Rudrapur": [
+["ROZ23739","Samuh Beat it! Bite it! Orange Cream Biscuit 35 g",5000,5000,0,"Sufficient (Surplus 3,413 Bx)",1024,540.5,483.5,"Sufficient (Surplus 852.4 Kg)",4607,23.22],
+["ROZ23738","Samuh Beat it Bite it Chocolate Cream Biscuit 35 g",4350,4350,0,"Sufficient (Surplus 1,374 Bx)",980,470.24,509.76,"Sufficient (Surplus 658.3 Kg)",4857,24.48],
+["ROZ23743","Samuh Butter Cookies Biscuit 32 g",0,0,0,"Shortage: 3,038 Bx (Buy)",1507,0,1507,"Sufficient (Surplus 1,164.4 Kg)",13766,63.43],
+["ROZ36955","Samuh Beat it Bite it Chocolate Cream Biscuit 70 g",0,0,0,"Shortage: 952 Bx (Buy)",336,0,336,"Sufficient (Surplus 257.8 Kg)",4214,17.7],
+["ROZ36956","Samuh Beat it! Bite it! Orange Cream Biscuit 70 g",0,0,0,"Shortage: 476 Bx (Buy)",332,0,332,"Sufficient (Surplus 292.9 Kg)",4164,17.49],
+["ROZ36958","Samuh Butter Cookies Biscuit 65g",0,0,0,"Shortage: 3,000 Bx (Buy)",992,0,992,"Sufficient (Surplus 729.6 Kg)",11682,45.56],
+["ROZ50020","Samuh Marie Biscuit 35 g",0,0,0,"Shortage: 5,923 Bx (Buy)",1514,0,1514,"Sufficient (Surplus 587.9 Kg)",9974,48.83]],
+"STRAIGHT LINE FOOD PRODUCTS PRIVATE LIMITED|Asansol, West Bengal": [
+["ROZ23738","Samuh Beat it Bite it Chocolate Cream Biscuit 35 g",7400,183,7217,"Stock Avail: 7,217 Bx (No Plan)",4523,19.78,4503.22,"Stock Avail: 4,503.2 Kg (No Plan)",42907,216.25],
+["ROZ23739","Samuh Beat it! Bite it! Orange Cream Biscuit 35 g",7400,1218,6182,"Sufficient (Surplus 5,601 Bx)",3939,131.67,3807.33,"Sufficient (Surplus 3,744.5 Kg)",36277,182.84],
+["ROZ23741","Samuh Coconut Cookies Biscuit 35 g",0,0,0,"No Plan / No Stock",950,0,950,"Stock Avail: 950.0 Kg (No Plan)",8372,42.19],
+["ROZ36954","Samuh Butter Cashew 30 g",0,113,-113,"Deficit: -113 Bx",3564,12.74,3551.26,"Stock Avail: 3,551.3 Kg (No Plan)",32440,140.14],
+["ROZ23743","Samuh Butter Cookies Biscuit 32 g",0,81,-81,"Deficit: -81 Bx",2380,9.13,2370.87,"Stock Avail: 2,370.9 Kg (No Plan)",21657,99.8],
+["ROZ36962","Samuh Marie Biscuit 75g",6160,4532,1628,"Sufficient (Surplus 2,304 Bx)",924,439.71,484.29,"Sufficient (Surplus 549.9 Kg)",5141,27.76],
+["ROZ36955","Samuh Beat it Bite it Chocolate Cream Biscuit 70 g",2580,0,2580,"Sufficient (Surplus 1,656 Bx)",1199.92,0,1199.92,"Sufficient (Surplus 1,124.0 Kg)",15049,63.21],
+["ROZ36957","Samuh Coconut Cookies Biscuit 70g",0,0,0,"No Plan / No Stock",1220,0,1220,"Stock Avail: 1,220.0 Kg (No Plan)",14151,59.43],
+["ROZ36959","Samuh Salty Sweety Biscuit 65 g",5520,3274,2246,"Shortage: 1,581 Bx (Buy)",2532,357.24,2174.76,"Sufficient (Surplus 1,757.2 Kg)",20529,80.06],
+["ROZ23742","Samuh Salty Sweety Biscuit 32 g",12073,4710,7363,"Sufficient (Surplus 328 Bx)",4514,736.39,3777.61,"Sufficient (Surplus 2,677.8 Kg)",24887,114.68],
+["ROZ36958","Samuh Butter Cookies Biscuit 65g",1780,169,1611,"Sufficient (Surplus 1,611 Bx)",1638,14.78,1623.22,"Sufficient (Surplus 1,623.2 Kg)",19115,74.55],
+["ROZ36960","Samuh Butter Cashew Biscuit 60g",0,0,0,"No Plan / No Stock",1346,0,1346,"Stock Avail: 1,346.0 Kg (No Plan)",15850,57.06],
+["ROZ36956","Samuh Beat it! Bite it! Orange Cream Biscuit 70 g",2580,0,2580,"Sufficient (Surplus 1,866 Bx)",1045.7,0,1045.7,"Sufficient (Surplus 987.0 Kg)",13115,55.08],
+["ROZ39494","Samuh Milky Biscuit 35 g",0,0,0,"No Plan / No Stock",611,0,611,"Stock Avail: 611.0 Kg (No Plan)",5203,26.22],
+["ROZ50020","Samuh Marie Biscuit 35 g",0,0,0,"No Plan / No Stock",1454,0,1454,"Stock Avail: 1,454.0 Kg (No Plan)",9579,48.28]],
+"RATTAN OIL MILLS|Kathua, Jammu": [
+["ROZ23741","Samuh Coconut Cookies Biscuit 33 g",17121,9736,7385,"Sufficient (Surplus 5,600 Bx)",2521,1137.96,1383.04,"Sufficient (Surplus 1,174.5 Kg)",12188,57.92],
+["ROZ36957","Samuh Coconut Cookies Biscuit 66g",5400,3144,2256,"Shortage: 271 Bx (Buy)",2676,279.19,2396.81,"Sufficient (Surplus 2,172.4 Kg)",27800,110.09],
+["ROZ23739","Samuh Beat it! Bite it! Orange Cream Biscuit 33 g",9520,5684,3836,"Sufficient (Surplus 3,207 Bx)",4459,614.44,3844.56,"Sufficient (Surplus 3,776.5 Kg)",36632,174.07],
+["ROZ36956","Samuh Beat it! Bite it! Orange Cream Biscuit 66 g",6765,2465,4300,"Sufficient (Surplus 3,482 Bx)",2433,202.44,2230.56,"Sufficient (Surplus 2,163.4 Kg)",27975,110.78],
+["ROZ23738","Samuh Beat it Bite it Chocolate Cream Biscuit 33 g",9580,5714,3866,"Shortage: 1,571 Bx (Buy)",3921,617.69,3303.31,"Sufficient (Surplus 2,715.6 Kg)",31475,149.57],
+["ROZ36955","Samuh Beat it Bite it Chocolate Cream Biscuit 66 g",1432,1713,-281,"Shortage: 3,077 Bx (Buy)",2583,140.68,2442.32,"Sufficient (Surplus 2,212.7 Kg)",30631,121.3],
+["ROZ23743","Samuh Butter Cookies Biscuit 30 g",16200,11009,5191,"Sufficient (Surplus 3,359 Bx)",3302,1241.33,2060.67,"Sufficient (Surplus 1,854.1 Kg)",18824,81.32],
+["ROZ36958","Samuh Butter Cookies Biscuit 60g",9755,3760,5995,"Sufficient (Surplus 3,364 Bx)",1428,328.88,1099.12,"Sufficient (Surplus 869.0 Kg)",12943,46.6],
+["ROZ36954","Samuh Butter Cashew 29 g",6402,5259,1143,"Shortage: 1,917 Bx (Buy)",3851,592.98,3258.02,"Sufficient (Surplus 2,913.0 Kg)",29761,124.28],
+["ROZ36960","Samuh Butter Cashew Biscuit 58g",12658,2049,10609,"Sufficient (Surplus 7,607 Bx)",2492,179.22,2312.78,"Sufficient (Surplus 2,050.2 Kg)",27235,94.78],
+["ROZ39494","Samuh Milky Biscuit 35 g",7873,10550,-2677,"Shortage: 6,016 Bx (Buy)",1575,1276.16,298.84,"Shortage: 105.0 Kg (PO Req)",2545,12.82],
+["ROZ23740","Samuh Zeera Biscuit 35 g",6078,3542,2536,"Sufficient (Surplus 3,300 Bx)",3304,443.41,2860.59,"Sufficient (Surplus 2,956.3 Kg)",23536,118.62],
+["ROZ46762","Samuh Bourbon Biscuit 60 g",3220,1002,2218,"Shortage: 2,104 Bx (Buy)",977,134.5,842.5,"Sufficient (Surplus 262.4 Kg)",6465,27.93],
+["ROZ50019","Samuh Digestive Biscuit 60 g",5950,5376,574,"Sufficient (Surplus 163 Bx)",984,721.62,262.38,"Sufficient (Surplus 207.2 Kg)",2013,8.7]],
+"DEVARPAN FOODS PRIVATE LIMITED|Kashipur": [
+["ROZ23760","Samuh Elaichi Rusk 130 g",270,0,270,"Shortage: 1,012 Bx (Buy)",724.45,0,724.45,"Sufficient (Surplus 616.1 Kg)",8826,27.54],
+["ROZ23759","Samuh Elaichi Rusk 65 g",8970,0,8970,"Sufficient (Surplus 3,842 Bx)",1065.58,0,1065.58,"Sufficient (Surplus 767.7 Kg)",18893,29.47]],
+"Saharnpur|Shubham Enterprises": [
+["ROZ23760","Samuh Elaichi Rusk 130 g",6221,4833,1388,"Sufficient (Surplus 2,589 Bx)",861,612.89,248.11,"Sufficient (Surplus 400.4 Kg)",2015,9.43],
+["ROZ23759","Samuh Elaichi Rusk 65 g",18355,10061,8294,"Sufficient (Surplus 3,398 Bx)",2673,876.7,1796.3,"Sufficient (Surplus 1,369.7 Kg)",21233,49.69]],
+"Meera Baker|Kanpur": [
+["ROZ23760","Samuh Elaichi Rusk 130 g",0,0,0,"Shortage: 3,205 Bx (Buy)",752.49,0,752.49,"Sufficient (Surplus 481.5 Kg)",9168,28.6],
+["ROZ23759","Samuh Elaichi Rusk 65 g",7636,2681,4955,"Shortage: 5,185 Bx (Buy)",1611.8,155.74,1456.06,"Sufficient (Surplus 867.0 Kg)",25817,40.27]],
+"Shri Shyam|Punjab": [
+["ROZ23760","Samuh Elaichi Rusk 130 g",1000,0,1000,"Shortage: 9,577 Bx (Buy)",1000,0,1000,"Sufficient (Surplus 105.8 Kg)",12183,38.01],
+["ROZ23759","Samuh Elaichi Rusk 65 g",5000,0,5000,"Shortage: 37,949 Bx (Buy)",1500,0,1500,"Shortage: 995.0 Kg (PO Req)",26596,41.49]]
+}};
+function fromSnap() {
+  const plants = SNAP.P.map(x => ({ loc: x[0], name: x[1], key: keyOf(x[0], x[1]), a: x[2], c: x[3], r: x[4], cs: x[5], la: x[6], lc: x[7], lr: x[8], ls: x[9] }));
+  const skus = [];
+  for (const k in SNAP.S) {
+    const [pl, loc] = k.split("|");
+    SNAP.S[k].forEach(x => skus.push({ pl, loc, key: keyOf(pl, loc), code: x[0], name: x[1], a: x[2], c: x[3], r: x[4], cs: x[5], la: x[6], lc: x[7], lr: x[8], ls: x[9], cap: x[10], tons: x[11] }));
+  }
+  for (const p of plants) {
+    const s = skus.filter(x => x.key === p.key);
+    p.cap = s.reduce((a, x) => a + x.cap, 0); p.tons = s.reduce((a, x) => a + x.tons, 0);
+  }
+  return { plants, skus, t: SNAP.t, snap: true };
+}
+
+async function load() {
+  try {
+    const res = await fetch(CSV_URL + "&t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    data = build(parseCSV(await res.text()));
+    $("#err").innerHTML = ""; $("#dot").classList.remove("off");
+    $("#upd").textContent = "Updated " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    render();
+  } catch (e) {
+    $("#dot").classList.add("off");
+    if (!data) { data = fromSnap(); render(); }
+    if (data.snap) {
+      $("#upd").textContent = "Saved copy";
+      $("#err").innerHTML = `<div class="err">Showing saved data from ${SNAP_DATE}, not live. Live data could not load (${esc(e.message)}). Retrying automatically.</div>`;
+    } else {
+      $("#upd").textContent = "Offline";
+      $("#err").innerHTML = `<div class="err">Could not refresh (${esc(e.message)}). Showing the last data received. Retrying automatically.</div>`;
+    }
+  }
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); tab = b.dataset.t; render(); scrollTo(0, 0);
+});
+$("#q").oninput = render; $("#sh").onchange = render; $("#sort").onchange = render;
+$("#pl").onchange = e => { plant = e.target.value; render(); };
+$("#view").onclick = e => { const r = e.target.closest("[data-p]"); if (r) { plant = plant === r.dataset.p ? "All" : r.dataset.p; render(); } };
+$("#ref").onclick = load;
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+load(); setInterval(() => { if (!document.hidden) load(); }, REFRESH_SECONDS * 1000);
+</script>
+</body>
+</html>
