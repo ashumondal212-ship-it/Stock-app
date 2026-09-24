@@ -159,7 +159,7 @@ function render() {
     pl.innerHTML = `<option value="All">All plants</option>` + data.plants.map(p => `<option value="${esc(p.key)}">${esc(p.name)} – ${esc(p.loc)}</option>`).join("");
   }
   pl.value = plant;
-  const used = x => tab === "box" ? (x.a || x.c || x.r) : tab === "lam" ? (x.la || x.lc || x.lr) : (x.cap || x.c);
+  const used = x => tab === "box" ? (x.a || x.c || x.r || boxShort(x)) : tab === "lam" ? (x.la || x.lc || x.lr || lamShort(x)) : (x.cap || x.c || boxShort(x) || lamShort(x));
   let items = data.skus.filter(s => used(s) && (plant === "All" || s.key === plant));
   if (q) items = items.filter(s => (s.name + " " + s.code).toLowerCase().includes(q));
   if (sh) items = items.filter(s => tab === "lam" ? lamShort(s) : tab === "box" ? boxShort(s) : (boxShort(s) || lamShort(s)));
@@ -222,7 +222,9 @@ S: {
 ["ROZ36955","Samuh Beat it Bite it Chocolate Cream Biscuit 70 g",0,0,0,"Shortage: 952 Bx (Buy)",336,0,336,"Sufficient (Surplus 257.8 Kg)",4214,17.7],
 ["ROZ36956","Samuh Beat it! Bite it! Orange Cream Biscuit 70 g",0,0,0,"Shortage: 476 Bx (Buy)",332,0,332,"Sufficient (Surplus 292.9 Kg)",4164,17.49],
 ["ROZ36958","Samuh Butter Cookies Biscuit 65g",0,0,0,"Shortage: 3,000 Bx (Buy)",992,0,992,"Sufficient (Surplus 729.6 Kg)",11682,45.56],
-["ROZ50020","Samuh Marie Biscuit 35 g",0,0,0,"Shortage: 5,923 Bx (Buy)",1514,0,1514,"Sufficient (Surplus 587.9 Kg)",9974,48.83]],
+["ROZ50020","Samuh Marie Biscuit 35 g",0,0,0,"Shortage: 5,923 Bx (Buy)",1514,0,1514,"Sufficient (Surplus 587.9 Kg)",9974,48.83],
+["ROZ23742","Samuh Salty Sweety Biscuit 32 g",0,0,0,"Shortage: 3,038 Bx (Buy)",0,0,0,"Shortage: 475.0 Kg (PO Req)",0,0],
+["ROZ36959","Samuh Salty Sweety Biscuit 65 g",0,0,0,"Shortage: 1,538 Bx (Buy)",0,0,0,"Shortage: 167.9 Kg (PO Req)",0,0]],
 "STRAIGHT LINE FOOD PRODUCTS PRIVATE LIMITED|Asansol, West Bengal": [
 ["ROZ23738","Samuh Beat it Bite it Chocolate Cream Biscuit 35 g",7400,183,7217,"Stock Avail: 7,217 Bx (No Plan)",4523,19.78,4503.22,"Stock Avail: 4,503.2 Kg (No Plan)",42907,216.25],
 ["ROZ23739","Samuh Beat it! Bite it! Orange Cream Biscuit 35 g",7400,1218,6182,"Sufficient (Surplus 5,601 Bx)",3939,131.67,3807.33,"Sufficient (Surplus 3,744.5 Kg)",36277,182.84],
@@ -253,7 +255,8 @@ S: {
 ["ROZ39494","Samuh Milky Biscuit 35 g",7873,10550,-2677,"Shortage: 6,016 Bx (Buy)",1575,1276.16,298.84,"Shortage: 105.0 Kg (PO Req)",2545,12.82],
 ["ROZ23740","Samuh Zeera Biscuit 35 g",6078,3542,2536,"Sufficient (Surplus 3,300 Bx)",3304,443.41,2860.59,"Sufficient (Surplus 2,956.3 Kg)",23536,118.62],
 ["ROZ46762","Samuh Bourbon Biscuit 60 g",3220,1002,2218,"Shortage: 2,104 Bx (Buy)",977,134.5,842.5,"Sufficient (Surplus 262.4 Kg)",6465,27.93],
-["ROZ50019","Samuh Digestive Biscuit 60 g",5950,5376,574,"Sufficient (Surplus 163 Bx)",984,721.62,262.38,"Sufficient (Surplus 207.2 Kg)",2013,8.7]],
+["ROZ50019","Samuh Digestive Biscuit 60 g",5950,5376,574,"Sufficient (Surplus 163 Bx)",984,721.62,262.38,"Sufficient (Surplus 207.2 Kg)",2013,8.7],
+["ROZ39495","Samuh Milky Biscuit 70 g",0,0,0,"Shortage: 3,373 Bx (Buy)",0,0,0,"Shortage: 307.8 Kg (PO Req)",0,0]],
 "DEVARPAN FOODS PRIVATE LIMITED|Kashipur": [
 ["ROZ23760","Samuh Elaichi Rusk 130 g",270,0,270,"Shortage: 1,012 Bx (Buy)",724.45,0,724.45,"Sufficient (Surplus 616.1 Kg)",8826,27.54],
 ["ROZ23759","Samuh Elaichi Rusk 65 g",8970,0,8970,"Sufficient (Surplus 3,842 Bx)",1065.58,0,1065.58,"Sufficient (Surplus 767.7 Kg)",18893,29.47]],
